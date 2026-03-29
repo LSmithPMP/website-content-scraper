@@ -1,0 +1,568 @@
+{
+  "name": "Website Content Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scrape-website",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "79586cf9-d9f7-4780-be7e-ac9fedf3c0d0",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -1744,
+        -1984
+      ],
+      "webhookId": "scrape-website-v3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate incoming request\nconst body = $input.first().json.body;\n\nif (!body || !body.url) {\n  throw new Error('URL is required in request body');\n}\n\nif (!body.userId) {\n  throw new Error('userId is required in request body');\n}\n\n// Validate URL format\nconst urlPattern = /^https?:\\/\\/.+/i;\nif (!urlPattern.test(body.url)) {\n  throw new Error('Invalid URL format. Must start with http:// or https://');\n}\n\n// Return validated data\nreturn {\n  url: body.url,\n  userId: body.userId,\n  requestedAt: new Date().toISOString()\n};"
+      },
+      "id": "06c01ecd-5a4f-4b58-945c-f17122e7b8ce",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1520,
+        -1984
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all scrapes for rate limiting check\nconst userId = $input.first().json.userId;\nconst url = $input.first().json.url;\n\n// We'll fetch scrapes in the next node, just pass data through\nreturn {\n  userId: userId,\n  url: url,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "3780a5f1-4913-4332-84da-edca2c7bcd8a",
+      "name": "Prepare Rate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        -1984
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://msusnnbapnyznihjgzke.supabase.co",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "API KEY",
+              "value": "=sb_publishable_m9wl7H5bCCbQsXz4FoWT5Q_kKpaDnYl"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_user_id\": \"{{ $json.userId }}\"\n}",
+        "options": {}
+      },
+      "id": "0cb7eab4-7aa8-445c-8671-84d458775a62",
+      "name": "Check Rate Limit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1072,
+        -1984
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "5f4EgrAMkISul3rH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if under rate limit\nconst scrapeCount = $input.first().json || 0;\nconst userId = $('Prepare Rate Check').first().json.userId;\nconst url = $('Prepare Rate Check').first().json.url;\n\nconst underLimit = scrapeCount < 10;\n\nreturn {\n  userId: userId,\n  url: url,\n  scrapeCount: scrapeCount,\n  underLimit: underLimit\n};"
+      },
+      "id": "269a8018-3dc5-43d6-9788-da47fa394675",
+      "name": "Evaluate Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        -1984
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.underLimit }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "086b26c5-7ac0-4357-ad68-64a7a7a99985",
+      "name": "Under Limit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        -1984
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/scrape",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $('Evaluate Limit').first().json.url }}\",\n  \"formats\": [\"markdown\", \"html\"],\n  \"onlyMainContent\": true,\n  \"includeTags\": [\"h1\", \"h2\", \"h3\", \"h4\", \"h5\", \"h6\", \"a\", \"title\", \"meta\"]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "0416cef5-75f8-4f46-8321-6f1fb0cde5a4",
+      "name": "Firecrawl Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -400,
+        -2080
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "5f4EgrAMkISul3rH",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the Firecrawl response\nconst response = $input.first().json;\nconst data = response.data || response;\nconst originalUrl = $('Evaluate Limit').first().json.url;\nconst userId = $('Evaluate Limit').first().json.userId;\n\n// Extract metadata\nconst metadata = data.metadata || {};\nconst pageTitle = metadata.title || data.title || 'Untitled';\nconst description = metadata.description || '';\n\n// Extract headings from markdown\nconst markdown = data.markdown || '';\nconst headingRegex = /^(#{1,6})\\s+(.+)$/gm;\nconst headings = [];\nlet match;\n\nwhile ((match = headingRegex.exec(markdown)) !== null) {\n  headings.push({\n    level: match[1].length,\n    text: match[2].trim(),\n    type: `h${match[1].length}`\n  });\n}\n\n// Extract links\nconst links = data.links || [];\nlet processedLinks = [];\ntry {\n  const urlObj = new URL(originalUrl);\n  processedLinks = links.map(link => {\n    const isInternal = link.startsWith('/') || link.includes(urlObj.hostname);\n    return {\n      href: link,\n      text: link,\n      isInternal: isInternal,\n      isExternal: !isInternal\n    };\n  });\n} catch (e) {\n  processedLinks = links.map(link => ({ href: link, text: link, isInternal: false, isExternal: true }));\n}\n\n// Extract text content for word count\nconst textContent = markdown.replace(/[#*`]/g, '').trim();\nconst wordCount = textContent.split(/\\s+/).filter(w => w.length > 0).length;\n\n// Return structured data\nreturn {\n  url: originalUrl,\n  userId: userId,\n  title: pageTitle,\n  description: description,\n  headings: headings,\n  links: processedLinks,\n  rawMarkdown: markdown.substring(0, 5000), // Limit size\n  metadata: {\n    wordCount: wordCount,\n    headingCount: headings.length,\n    linkCount: links.length,\n    internalLinkCount: processedLinks.filter(l => l.isInternal).length,\n    externalLinkCount: processedLinks.filter(l => l.isExternal).length\n  },\n  scrapedAt: new Date().toISOString()\n};"
+      },
+      "id": "0c314281-9f64-4d98-a6c2-a0285e3556e1",
+      "name": "Parse Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        -2080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a web content analyzer. Provide concise summaries of webpage content.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this webpage:\\n\\nURL: {{ $json.url }}\\nTitle: {{ $json.title }}\\nDescription: {{ $json.description }}\\n\\nPage Statistics:\\n- Headings: {{ $json.metadata.headingCount }}\\n- Words: {{ $json.metadata.wordCount }}\\n- Links: {{ $json.metadata.linkCount }}\\n\\nProvide a 3-4 sentence summary covering the main topic, key sections, and target audience.\"\n    }\n  ],\n  \"max_tokens\": 500,\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "id": "6edbf82a-ae90-46fd-bc41-53c986d54d8f",
+      "name": "OpenAI Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        48,
+        -2080
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wSTykVwKqvSf8KYE",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine parsed content with AI summary\nconst parsedData = $('Parse Content').first().json;\nconst aiResponse = $input.first().json;\n\nlet aiSummary = 'Summary generation failed';\ntry {\n  aiSummary = aiResponse.choices[0].message.content || 'No summary available';\n} catch (e) {\n  console.log('Error extracting AI summary:', e);\n}\n\nreturn {\n  ...parsedData,\n  aiSummary: aiSummary\n};"
+      },
+      "id": "41de7e0a-4dcf-4360-8f19-609acc014bc2",
+      "name": "Combine Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        -2080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/scrapes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.userId }}\",\n  \"url\": \"{{ $json.url }}\",\n  \"title\": \"{{ $json.title }}\",\n  \"scraped_at\": \"{{ $json.scrapedAt }}\",\n  \"ai_summary\": \"{{ $json.aiSummary }}\",\n  \"metadata\": {{ JSON.stringify($json.metadata) }}\n}",
+        "options": {}
+      },
+      "id": "8db48ab3-0e28-41df-a0f9-17e9d7ff1491",
+      "name": "Save Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        496,
+        -2080
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wSTykVwKqvSf8KYE",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the scrape_id from the previous insert\nconst scrapeResponse = $input.first().json;\nconst scrapeId = Array.isArray(scrapeResponse) ? scrapeResponse[0].id : scrapeResponse.id;\nconst data = $('Combine Data').first().json;\n\n// Prepare batch insert data for scraped_content table\nconst contentItems = [];\n\n// Add title\nif (data.title) {\n  contentItems.push({\n    scrape_id: scrapeId,\n    content_type: 'title',\n    content: data.title,\n    context: { description: data.description }\n  });\n}\n\n// Add headings (limit to 50)\ndata.headings.slice(0, 50).forEach(heading => {\n  contentItems.push({\n    scrape_id: scrapeId,\n    content_type: 'heading',\n    content: heading.text,\n    context: { level: heading.level, type: heading.type }\n  });\n});\n\n// Add links (limit to 100)\ndata.links.slice(0, 100).forEach(link => {\n  contentItems.push({\n    scrape_id: scrapeId,\n    content_type: 'link',\n    content: link.text || link.href,\n    context: { \n      href: link.href, \n      isInternal: link.isInternal,\n      isExternal: link.isExternal\n    }\n  });\n});\n\nreturn {\n  scrapeId: scrapeId,\n  contentItems: contentItems\n};"
+      },
+      "id": "085e70f5-4da7-4468-8c6c-8dd0a57245e5",
+      "name": "Prepare Content Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -2080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/scraped_content",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.contentItems) }}",
+        "options": {}
+      },
+      "id": "e498fd82-1a7a-4e5e-a00d-f3d71e283d1f",
+      "name": "Save Content Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        944,
+        -2080
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wSTykVwKqvSf8KYE",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare success response\nconst scrapeId = $('Prepare Content Items').first().json.scrapeId;\nconst originalData = $('Combine Data').first().json;\n\nreturn {\n  success: true,\n  message: 'Website scraped successfully',\n  data: {\n    scrapeId: scrapeId,\n    url: originalData.url,\n    title: originalData.title,\n    summary: originalData.aiSummary,\n    stats: originalData.metadata,\n    scrapedAt: originalData.scrapedAt,\n    contentCounts: {\n      headings: originalData.headings.length,\n      links: originalData.links.length\n    }\n  }\n};"
+      },
+      "id": "1c9cbafa-bdd8-4420-b99e-329d3635a873",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        -2080
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "22cfbfb4-78b8-4c1e-a6c5-d72160f5815a",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1392,
+        -2080
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Rate limit exceeded response\nconst scrapeCount = $('Evaluate Limit').first().json.scrapeCount;\n\nreturn {\n  success: false,\n  error: 'Rate limit exceeded',\n  message: `You have made ${scrapeCount} scrapes in the last hour. Maximum allowed is 10. Please try again later.`,\n  retryAfter: '1 hour',\n  currentCount: scrapeCount,\n  maxAllowed: 10\n};"
+      },
+      "id": "d3077ea8-4d71-41ff-96f2-00f06fc981e4",
+      "name": "Rate Limit Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -1888
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 429
+        }
+      },
+      "id": "61072e10-b707-4505-bd7a-6821bcdf7a05",
+      "name": "Respond Rate Limit",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -176,
+        -1888
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Prepare Rate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rate Check": {
+      "main": [
+        [
+          {
+            "node": "Check Rate Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Rate Limit": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Limit": {
+      "main": [
+        [
+          {
+            "node": "Under Limit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under Limit?": {
+      "main": [
+        [
+          {
+            "node": "Firecrawl Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rate Limit Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firecrawl Scrape": {
+      "main": [
+        [
+          {
+            "node": "Parse Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Content": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Summary": {
+      "main": [
+        [
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Save Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Scrape": {
+      "main": [
+        [
+          {
+            "node": "Prepare Content Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Content Items": {
+      "main": [
+        [
+          {
+            "node": "Save Content Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Content Items": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Error": {
+      "main": [
+        [
+          {
+            "node": "Respond Rate Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "1bc9bb4d-1054-49b5-81bc-3a2fc9d699ee",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "35af61cdb10af63706b8451b1603885f61fa5f7c5839f5f0bddf787166bda6f7"
+  },
+  "id": "8AKUXqqh2jlurdBAxtRdh",
+  "tags": []
+}
