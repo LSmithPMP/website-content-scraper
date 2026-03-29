@@ -3,7 +3,10 @@
 > **Generative AI Mastermind · Session 3 · Outskill · January 2026**  
 > Lamonte Smith
 
-A production-quality web scraping API built in n8n that accepts a URL, scrapes it using Firecrawl, extracts structured content, generates an AI summary via GPT-4o-mini, and stores everything in Supabase — with per-user rate limiting and full input validation on every request.
+![Website Content Scraper Workflow](website-scraper-diagram.png)
+
+
+---A production-quality web scraping API built in n8n that accepts a URL, scrapes it using Firecrawl, extracts structured content, generates an AI summary via GPT-4o-mini, and stores everything in Supabase — with per-user rate limiting and full input validation on every request.
 
 ---
 
